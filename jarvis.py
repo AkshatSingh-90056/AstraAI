@@ -1,7 +1,9 @@
 import speech_recognition as sr
 import pyttsx3
 import ollama
-import webbrowser  # FOR OPENING WEBSITES
+import webbrowser
+import os  # NEW: For file creation and absolute paths
+import re  # NEW: For extracting the file name from your voice command
 from datetime import datetime
 
 # Initialize the Text-to-Speech Engine
@@ -71,21 +73,55 @@ def run_jarvis():
                 speak("Shutting down protocols. Goodbye!")
                 break
                 
-            # 2. HARDCODED ACTION: Actually open YouTube
+            # 2. NEW ACTION: Create a file
+           # 2. NEW ACTION: Create a file
+            elif "create a file" in command or "make a file" in command:
+                print("Jarvis: Processing file creation request...")
+                
+                # UPDATE: Now looks for "named", "called", OR "name"
+                match = re.search(r'(?:named|called|name)\s+(\S+)', command)
+                
+                if match:
+                    filename = match.group(1)
+                    
+                    if "." not in filename:
+                        filename += ".txt"
+                        
+                    try:
+                        with open(filename, 'w') as f:
+                            pass
+                            
+                        abs_path = os.path.abspath(filename)
+                        # Prints the success path to your terminal
+                        print(f"Jarvis: File created successfully at {abs_path}") 
+                        speak(f"File created successfully. It is saved as {filename}.")
+                        
+                    except Exception as e:
+                        print(f"Error: {e}")
+                        speak("I encountered a system error while trying to write the file.")
+                else:
+                    # UPDATE: Added a print statement so you can see if it fails
+                    error_msg = "I didn't catch the exact name. Please say 'create a file named' followed by your desired name."
+                    print(f"Jarvis: {error_msg}")
+                    speak(error_msg)
+                
+                continue
+                
+            # 3. HARDCODED ACTION: Open YouTube
             elif "open youtube" in command:
                 speak("Opening YouTube right away, Boss.")
                 print("Jarvis: Opening YouTube...")
                 webbrowser.open("https://www.youtube.com")
-                continue # Skip sending this to the LLM since we handled it locally
+                continue
                 
-            # 3. HARDCODED ACTION: Actually open Google
+            # 4. HARDCODED ACTION: Open Google
             elif "open google" in command:
                 speak("Opening Google, Boss.")
                 print("Jarvis: Opening Google...")
                 webbrowser.open("https://www.google.com")
                 continue
 
-            # 4. General conversation via Llama 3 (Egg curry, learning Python, etc.)
+            # 5. General conversation via Llama 3
             print("Jarvis is thinking...")
             jarvis_reply = ask_brain(command)
             print(f"Jarvis: {jarvis_reply}")
