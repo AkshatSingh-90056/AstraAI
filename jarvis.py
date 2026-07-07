@@ -108,7 +108,7 @@ def ask_brain(user_input):
     try:
       
         response = ollama.chat(
-            model='llama3',
+            model='llama3.1',
             messages=[
                 {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': user_input}
