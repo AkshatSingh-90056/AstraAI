@@ -3,7 +3,9 @@ import pyttsx3
 import ollama
 import webbrowser
 import os
+import urllib.parse
 from datetime import datetime
+
 
 engine = pyttsx3.init()
 engine.setProperty('rate', 170)
@@ -28,33 +30,63 @@ def listen():
             return ""
 
 def create_file_tool(filename):
-    """Physically creates a file on the hard drive."""
     if "." not in filename:
         filename += ".txt"
     try:
         with open(filename, 'w') as f:
             pass
-        abs_path = os.path.abspath(filename)
-        print(f"System: File created at {abs_path}")
         return f"Successfully created the file named {filename}."
     except Exception as e:
         return f"Failed to create file. Error: {str(e)}"
 
 def open_website_tool(url):
-    """Opens a URL in the default browser."""
     if not url.startswith("http"):
         url = "https://" + url
     try:
         webbrowser.open(url)
-        print(f"System: Opening browser to {url}")
-        return f"I have opened the website for you, Boss."
+        return "I have opened the website for you, Boss."
     except Exception as e:
         return f"Failed to open website. Error: {str(e)}"
 
+def search_youtube_tool(query):
+    try:
+        encoded_query = urllib.parse.quote(query)
+        url = f"https://www.youtube.com/results?search_query={encoded_query}"
+        webbrowser.open(url)
+        return f"I have pulled up the YouTube search results for {query}, Boss."
+    except Exception as e:
+        return "Failed to search YouTube."
+
+
+def open_application_tool(app_name):
+    """Launches standard Windows applications."""
+   
+    apps = {
+        "notepad": "notepad",
+        "calculator": "calc",
+        "vs code": "code",
+        "vscode": "code",
+        "command prompt": "cmd",
+        "terminal": "cmd",
+        "explorer": "explorer",
+        "paint": "mspaint"
+    }
+    
+   
+    exe_name = apps.get(app_name.lower(), app_name.lower())
+    
+    try:
+      
+        os.system(f"start {exe_name}")
+        return f"I have launched {app_name} for you."
+    except Exception as e:
+        return f"I encountered an error trying to open {app_name}."
 
 available_functions = {
     'create_file': create_file_tool,
-    'open_website': open_website_tool
+    'open_website': open_website_tool,
+    'search_youtube': search_youtube_tool,
+    'open_application': open_application_tool 
 }
 
 
@@ -67,10 +99,7 @@ jarvis_tools = [
             'parameters': {
                 'type': 'object',
                 'properties': {
-                    'filename': {
-                        'type': 'string',
-                        'description': 'The name of the file to create, including the extension (e.g., notes.txt, data.csv)',
-                    },
+                    'filename': {'type': 'string', 'description': 'The name of the file to create.'},
                 },
                 'required': ['filename'],
             },
@@ -80,16 +109,48 @@ jarvis_tools = [
         'type': 'function',
         'function': {
             'name': 'open_website',
-            'description': 'Opens a specific website in the computer browser.',
+            'description': 'Opens a specific website homepage in the browser.',
             'parameters': {
                 'type': 'object',
                 'properties': {
                     'url': {
-                        'type': 'string',
-                        'description': 'The full URL of the website to open, such as www.youtube.com or www.google.com',
+                        'type': 'string', 
+                        'description': 'The URL of the website. If the user says a brand name, format it as www.[name].com. CRITICAL: If the user says "my github", "my profile", or "my repository", the URL MUST be exactly "https://github.com/AkshatSingh-90056".'
                     },
                 },
                 'required': ['url'],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'search_youtube',
+            'description': 'Searches YouTube for a specific video, topic, song, or channel.',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'query': {'type': 'string', 'description': 'The exact search term to look for on YouTube.'},
+                },
+                'required': ['query'],
+            },
+        },
+    },
+
+    {
+        'type': 'function',
+        'function': {
+            'name': 'open_application',
+            'description': 'Opens a local desktop application or program on the Windows computer.',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'app_name': {
+                        'type': 'string', 
+                        'description': 'The name of the application to open (e.g., notepad, calculator, vs code, terminal).'
+                    },
+                },
+                'required': ['app_name'],
             },
         },
     }
@@ -101,51 +162,48 @@ def ask_brain(user_input):
         "You are Jarvis, a brilliant and concise AI assistant. "
         "Never use markdown symbols like asterisks, bullet points, or bold text. "
         f"The current time is {current_time}. "
-        "If the user asks you to do something, use your tools if applicable. "
+        "CRITICAL INSTRUCTION: ONLY use a tool if the user EXPLICITLY asks you to open a website, "
+        "search YouTube, create a file, or open an application. "
+        "If the user is just chatting, praising you, or asking general questions, DO NOT use tools. "
+        "If the user asks you to read, count, or extract data from a website, politely explain that you can "
+        "open the website for them, but you do not have screen-reading capabilities yet. "
+        "NEVER output your internal JSON thoughts or tool formats in your spoken text. "
         "Always refer to the user as Boss."
     )
     
     try:
-      
         response = ollama.chat(
             model='llama3.1',
             messages=[
                 {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': user_input}
             ],
-            tools=jarvis_tools
+            tools=jarvis_tools 
         )
         
         message = response.get('message', {})
         
-
         if message.get('tool_calls'):
-            print("Jarvis decided to use a tool...")
-            
-
             for tool in message['tool_calls']:
                 function_name = tool['function']['name']
                 arguments = tool['function']['arguments']
                 
-          
                 if function_name in available_functions:
                     function_to_call = available_functions[function_name]
                     
-              
                     if function_name == 'create_file':
-                        result_speech = function_to_call(arguments['filename'])
+                        return function_to_call(arguments['filename'])
                     elif function_name == 'open_website':
-                        result_speech = function_to_call(arguments['url'])
+                        return function_to_call(arguments['url'])
+                    elif function_name == 'search_youtube':
+                        return function_to_call(arguments['query'])
+                    elif function_name == 'open_application':
+                        return function_to_call(arguments['app_name'])
                         
-                    return result_speech
-                    
-        
         return message.get('content', "I am processing that, Boss.")
         
     except Exception as e:
-        print(f"Brain Error: {e}")
         return "I am sorry Boss, I am having trouble communicating with my core."
-
 
 def run_jarvis():
     print("Initializing systems...")
@@ -167,6 +225,8 @@ def run_jarvis():
                 break
             
             print("Jarvis is thinking...")
+            speak("Right away.") 
+            
             jarvis_reply = ask_brain(command)
             
             if jarvis_reply:
