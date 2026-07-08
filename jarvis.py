@@ -4,6 +4,7 @@ import ollama
 import webbrowser
 import os
 import urllib.parse
+import requests  
 from datetime import datetime
 
 
@@ -28,6 +29,7 @@ def listen():
         except sr.RequestError:
             print("Network error.")
             return ""
+
 
 def create_file_tool(filename):
     if "." not in filename:
@@ -57,10 +59,7 @@ def search_youtube_tool(query):
     except Exception as e:
         return "Failed to search YouTube."
 
-
 def open_application_tool(app_name):
-    """Launches standard Windows applications."""
-   
     apps = {
         "notepad": "notepad",
         "calculator": "calc",
@@ -71,22 +70,120 @@ def open_application_tool(app_name):
         "explorer": "explorer",
         "paint": "mspaint"
     }
-    
-   
     exe_name = apps.get(app_name.lower(), app_name.lower())
-    
     try:
-      
         os.system(f"start {exe_name}")
         return f"I have launched {app_name} for you."
     except Exception as e:
         return f"I encountered an error trying to open {app_name}."
 
+def get_github_stats_tool(username):
+    try:
+        user_url = f"https://api.github.com/users/{username}"
+        user_response = requests.get(user_url)
+        
+        if user_response.status_code == 200:
+            user_data = user_response.json()
+            repos_count = user_data.get('public_repos', 0)
+            
+            repos_url = f"https://api.github.com/users/{username}/repos"
+            repos_response = requests.get(repos_url)
+            
+            if repos_response.status_code == 200:
+                repos_data = repos_response.json()
+                repo_names = [repo['name'] for repo in repos_data]
+                
+                if repo_names:
+                    names_list = ", ".join(repo_names)
+                    return f"Boss, your GitHub account has {repos_count} public projects. The projects are named: {names_list}."
+                else:
+                    return f"Boss, you have {repos_count} public projects, but they appear to be empty."
+            else:
+                return f"Boss, you have {repos_count} projects, but I couldn't fetch their specific names."
+        else:
+            return f"I am sorry, Boss. I could not find a GitHub profile with the username {username}."
+    except Exception as e:
+        return "I encountered a network error while trying to reach the GitHub servers."
+
+
+def get_leetcode_stats_tool(username="Akshat_singh22"):
+    """Fetches live problem-solving stats directly from LeetCode."""
+    
+  
+    if " " in username or "code" in username.lower() or "league" in username.lower():
+        username = "Akshat_singh22"
+        
+    try:
+       
+        url = "https://leetcode.com/graphql"
+        query = """
+        query getUserProfile($username: String!) {
+            matchedUser(username: $username) {
+                submitStats {
+                    acSubmissionNum {
+                        difficulty
+                        count
+                    }
+                }
+            }
+        }
+        """
+        variables = {"username": username}
+        
+
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0"
+        }
+        
+        response = requests.post(url, json={"query": query, "variables": variables}, headers=headers)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+   
+            if "errors" in data or data.get("data", {}).get("matchedUser") is None:
+                return f"Boss, I couldn't find the stats for the LeetCode user {username}."
+            
+         
+            stats = data["data"]["matchedUser"]["submitStats"]["acSubmissionNum"]
+            counts = {item['difficulty']: item['count'] for item in stats}
+            
+            total = counts.get('All', 0)
+            easy = counts.get('Easy', 0)
+            medium = counts.get('Medium', 0)
+            hard = counts.get('Hard', 0)
+            
+            return f"Boss, your LeetCode account has solved a total of {total} questions. This includes {easy} easy, {medium} medium, and {hard} hard questions."
+        else:
+            return "I am sorry, Boss. The LeetCode servers are currently unreachable."
+    except Exception as e:
+        return "I encountered a network error while trying to fetch your LeetCode stats."
+
+def get_weather_tool(location="Lucknow"):
+    try:
+        url = f"https://wttr.in/{location}?format=j1"
+        response = requests.get(url)
+        
+        if response.status_code == 200:
+            data = response.json()
+            temp_c = data['current_condition'][0]['temp_C']
+            description = data['current_condition'][0]['weatherDesc'][0]['value']
+            
+            return f"Boss, the current weather in {location} is {temp_c} degrees Celsius with {description}."
+        else:
+            return f"I am sorry, Boss. I couldn't fetch the weather for {location} right now."
+    except Exception as e:
+        return "I encountered a network error while trying to reach the weather servers."
+
 available_functions = {
     'create_file': create_file_tool,
     'open_website': open_website_tool,
     'search_youtube': search_youtube_tool,
-    'open_application': open_application_tool 
+    'open_application': open_application_tool,
+    'get_github_stats': get_github_stats_tool,
+    'get_leetcode_stats': get_leetcode_stats_tool,
+    'get_weather': get_weather_tool 
 }
 
 
@@ -95,17 +192,34 @@ jarvis_tools = [
         'type': 'function',
         'function': {
             'name': 'create_file',
-            'description': 'Creates a new empty text file or document on the computer.',
+            'description': 'Creates a new empty text file.',
             'parameters': {
                 'type': 'object',
                 'properties': {
-                    'filename': {'type': 'string', 'description': 'The name of the file to create.'},
+                    'filename': {'type': 'string'},
                 },
                 'required': ['filename'],
             },
         },
     },
     {
+        'type': 'function',
+        'function': {
+            'name': 'get_weather',
+            'description': 'Fetches the current live weather and temperature.',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'location': {
+                        'type': 'string',
+                        'description': 'The city to get the weather for. If the user does not specify a city, default to "Lucknow".'
+                    },
+                },
+                'required': ['location'],
+            },
+        },
+    },
+   {
         'type': 'function',
         'function': {
             'name': 'open_website',
@@ -115,7 +229,7 @@ jarvis_tools = [
                 'properties': {
                     'url': {
                         'type': 'string', 
-                        'description': 'The URL of the website. If the user says a brand name, format it as www.[name].com. CRITICAL: If the user says "my github", "my profile", or "my repository", the URL MUST be exactly "https://github.com/AkshatSingh-90056".'
+                        'description': 'The URL of the website. CRITICAL: "my github" -> "https://github.com/AkshatSingh-90056". "my linkedin" -> "https://www.linkedin.com/in/akshat-singh-811641317/". "my leetcode" or "my lead code" -> "https://leetcode.com/u/Akshat_singh22/".'
                     },
                 },
                 'required': ['url'],
@@ -126,48 +240,80 @@ jarvis_tools = [
         'type': 'function',
         'function': {
             'name': 'search_youtube',
-            'description': 'Searches YouTube for a specific video, topic, song, or channel.',
+            'description': 'Searches YouTube for a specific video or topic.',
             'parameters': {
                 'type': 'object',
                 'properties': {
-                    'query': {'type': 'string', 'description': 'The exact search term to look for on YouTube.'},
+                    'query': {'type': 'string'},
                 },
                 'required': ['query'],
             },
         },
     },
-
     {
         'type': 'function',
         'function': {
             'name': 'open_application',
-            'description': 'Opens a local desktop application or program on the Windows computer.',
+            'description': 'Opens a local desktop application.',
             'parameters': {
                 'type': 'object',
                 'properties': {
-                    'app_name': {
-                        'type': 'string', 
-                        'description': 'The name of the application to open (e.g., notepad, calculator, vs code, terminal).'
-                    },
+                    'app_name': {'type': 'string'},
                 },
                 'required': ['app_name'],
+            },
+        },
+    },
+    {
+        'type': 'function',
+        'function': {
+            'name': 'get_github_stats',
+            'description': 'Fetches live statistics and repository names from a GitHub profile.',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'username': {
+                        'type': 'string',
+                        'description': 'The exact GitHub username. CRITICAL: If the user asks about "my github", use exactly "AkshatSingh-90056".'
+                    },
+                },
+                'required': ['username'],
+            },
+        },
+    },
+   
+ {
+        'type': 'function',
+        'function': {
+            'name': 'get_leetcode_stats',
+            'description': 'Fetches the number of solved programming questions from a LeetCode profile.',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'username': {
+                        'type': 'string',
+                        'description': 'The exact LeetCode username. CRITICAL: If the user asks about "my leetcode", "league code", "lead code", or "my problem solving stats", use exactly "Akshat_singh22".'
+                    },
+                },
+                'required': ['username'],
             },
         },
     }
 ]
 
+
 def ask_brain(user_input):
     current_time = datetime.now().strftime("%I:%M %p")
+    
+  
     system_prompt = (
-        "You are Jarvis, a brilliant and concise AI assistant. "
-        "Never use markdown symbols like asterisks, bullet points, or bold text. "
+        "You are Jarvis, a highly intelligent and concise AI assistant. "
+        "Never use markdown formatting. "
         f"The current time is {current_time}. "
-        "CRITICAL INSTRUCTION: ONLY use a tool if the user EXPLICITLY asks you to open a website, "
-        "search YouTube, create a file, or open an application. "
-        "If the user is just chatting, praising you, or asking general questions, DO NOT use tools. "
-        "If the user asks you to read, count, or extract data from a website, politely explain that you can "
-        "open the website for them, but you do not have screen-reading capabilities yet. "
-        "NEVER output your internal JSON thoughts or tool formats in your spoken text. "
+        "If the user asks you to do something that matches one of your capabilities (like opening a website, checking weather, etc.), trigger the tool silently. "
+        "Do NOT explain that you are going to use a tool, and NEVER write out dictionary or code formats in your spoken text. "
+        "If no tool is needed, just chat naturally. "
+        "If the user asks for the weather without specifying a city, always default the location to Lucknow. "
         "Always refer to the user as Boss."
     )
     
@@ -192,18 +338,25 @@ def ask_brain(user_input):
                     function_to_call = available_functions[function_name]
                     
                     if function_name == 'create_file':
-                        return function_to_call(arguments['filename'])
+                        return function_to_call(arguments.get('filename'))
                     elif function_name == 'open_website':
-                        return function_to_call(arguments['url'])
+                        return function_to_call(arguments.get('url'))
                     elif function_name == 'search_youtube':
-                        return function_to_call(arguments['query'])
+                        return function_to_call(arguments.get('query'))
                     elif function_name == 'open_application':
-                        return function_to_call(arguments['app_name'])
+                        return function_to_call(arguments.get('app_name'))
+                    elif function_name == 'get_github_stats':
+                        return function_to_call(arguments.get('username'))
+                    elif function_name == 'get_leetcode_stats':
+                        return function_to_call(arguments.get('username'))
+                    elif function_name == 'get_weather':
+                        return function_to_call(arguments.get('location', 'Deoria'))
                         
         return message.get('content', "I am processing that, Boss.")
         
     except Exception as e:
         return "I am sorry Boss, I am having trouble communicating with my core."
+
 
 def run_jarvis():
     print("Initializing systems...")
