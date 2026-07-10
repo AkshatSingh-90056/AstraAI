@@ -10,24 +10,18 @@ import customtkinter as ctk
 from datetime import datetime
 from ddgs import DDGS
 
-# ==========================================
-# 1. INITIALIZE HARDWARE
-# ==========================================
+
 engine = pyttsx3.init()
 engine.setProperty('rate', 170)
 recognizer = sr.Recognizer()
 
-# ==========================================
-# 2. DEFINE YOUR PYTHON TOOLS
-# ==========================================
+
 def create_file_tool(filename):
     if "." not in filename:
         filename += ".txt"
     try:
-        # Save it right in your active project folder
         with open(filename, 'w') as f:
             pass
-        # Get the exact absolute path where Windows put it
         absolute_path = os.path.abspath(filename)
         return f"Successfully created the file. Boss, you can find it at {absolute_path}."
     except Exception as e:
@@ -52,7 +46,6 @@ def search_youtube_tool(query):
         return "Failed to search YouTube."
 
 def open_application_tool(app_name):
-    # Only these specific local programs are allowed
     apps = {
         "notepad": "notepad",
         "calculator": "calc",
@@ -64,7 +57,6 @@ def open_application_tool(app_name):
         "paint": "mspaint"
     }
     
-    # THE FAILSAFE: If she tries to open a website as an app, block her!
     if app_name.lower() not in apps:
         return f"Boss, {app_name} is a website or unrecognized program, not a local desktop application. Please use the open_website tool instead."
         
@@ -147,11 +139,9 @@ def get_weather_tool(location="Lucknow"):
     except Exception as e:
         return "I encountered a network error while trying to reach the weather servers."
 
-# NEW TOOL: Breaking News Search (Renamed to prevent hallucination)
 def get_breaking_news_tool(query):
     """Silently searches the web for current events."""
     
-    # THE PYTHON FAILSAFE: If the AI tries to cheat and look up a fact, Python blocks it.
     static_words = ["capital", "history", "what is", "where is", "who was"]
     if any(word in query.lower() for word in static_words):
         return "Internal Error: You used a news tool for a static fact. DO NOT READ THIS ALOUD. Just answer the Boss's question directly using your own brain."
@@ -178,9 +168,6 @@ available_functions = {
     'get_breaking_news': get_breaking_news_tool 
 }
 
-# ==========================================
-# 3. DEFINE THE LLM TOOL MENU
-# ==========================================
 astra_tools = [
    {
         'type': 'function',
@@ -303,9 +290,6 @@ astra_tools = [
 ]
 
 
-# ==========================================
-# 4. THE BRAIN
-# ==========================================
 def ask_brain(user_input):
     current_time = datetime.now().strftime("%I:%M %p")
     system_prompt = (
@@ -315,14 +299,12 @@ def ask_brain(user_input):
         "Always refer to the user as Boss."
     )
     
-    # THE WHITELIST ROUTER: Python checks if tools are actually needed
-    # THE WHITELIST ROUTER: Added file creation keywords!
+   
     tool_keywords = ["weather", "temperature", "open", "youtube", "github", "leetcode", "news", "launch", "play", "file", "create", "make"]
     needs_tools = any(keyword in user_input.lower() for keyword in tool_keywords)
     
     try:
         if needs_tools:
-            # Give her the tools, she actually needs them
             print("[System] Action words detected. Granting Astra tool access...")
             response = ollama.chat(
                 model='llama3.1',
@@ -333,7 +315,6 @@ def ask_brain(user_input):
                 tools=astra_tools 
             )
         else:
-            # Hide the tools completely! She physically has no choice but to use her brain.
             print("[System] Basic chat detected. Unplugging tools for instant speed...")
             response = ollama.chat(
                 model='llama3.1',
@@ -345,7 +326,7 @@ def ask_brain(user_input):
         
         message = response.get('message', {})
         
-        # Process tool calls ONLY if she made one
+      
         if message.get('tool_calls'):
             for tool in message['tool_calls']:
                 function_name = tool['function']['name']
@@ -378,20 +359,18 @@ def ask_brain(user_input):
         return "I am sorry Boss, my core just crashed."
 
 
-# ==========================================
-# 5. THE GRAPHICAL INTERFACE (GUI)
-# ==========================================
+
 class AstraGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        # Setup the Window
+        
         self.title("AstraAI - Core System")
         self.geometry("600x500")
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
-        # UI Layout
+    
         self.title_label = ctk.CTkLabel(self, text="Astra AI Offline Engine", font=ctk.CTkFont(size=24, weight="bold"))
         self.title_label.pack(pady=20)
 
@@ -401,12 +380,10 @@ class AstraGUI(ctk.CTk):
         self.console_box = ctk.CTkTextbox(self, width=500, height=300, font=ctk.CTkFont(size=14))
         self.console_box.pack(pady=10)
         self.console_box.insert("0.0", "System Initializing...\n")
-        self.console_box.configure(state="disabled") # Make it read-only
+        self.console_box.configure(state="disabled")
 
-        # STATE VARIABLE: Controls the live countdown
         self.is_listening = False
 
-        # Start Astra's brain in a background thread so the UI doesn't freeze
         self.is_running = True
         self.astra_thread = threading.Thread(target=self.run_astra)
         self.astra_thread.daemon = True
@@ -416,7 +393,7 @@ class AstraGUI(ctk.CTk):
         """Safely pushes text to the UI console"""
         self.console_box.configure(state="normal")
         self.console_box.insert("end", text + "\n")
-        self.console_box.see("end") # Auto-scroll to bottom
+        self.console_box.see("end") 
         self.console_box.configure(state="disabled")
 
     def update_status(self, text, color="white"):
@@ -429,7 +406,6 @@ class AstraGUI(ctk.CTk):
         engine.say(text)
         engine.runAndWait()
 
-    # --- NEW LIVE COUNTDOWN LOGIC ---
     def start_countdown(self, seconds):
         """Starts the live ticking clock on the UI"""
         self.is_listening = True
@@ -438,11 +414,10 @@ class AstraGUI(ctk.CTk):
     def tick_timer(self, seconds):
         """The loop that visually updates the UI every single second"""
         if not self.is_listening:
-            return # The kill switch: Stop ticking if the user stops talking early
+            return 
         
         if seconds > 0:
             self.update_status(f"Listening... [{seconds}s remaining]", color="#00ffcc")
-            # Schedule the next tick in exactly 1 second (1000 milliseconds)
             self.after(1000, self.tick_timer, seconds - 1)
         else:
             self.update_status("Listening Timed Out", color="orange")
@@ -450,25 +425,21 @@ class AstraGUI(ctk.CTk):
     def stop_countdown(self):
         """Instantly kills the clock"""
         self.is_listening = False
-    # --------------------------------
 
     def listen(self):
         """Custom listen function linked to the UI and live timer"""
         with sr.Microphone() as source:
             
-            # Start the 15-second live countdown!
             self.start_countdown(15) 
             
             try:
                 audio = recognizer.listen(source, timeout=10, phrase_time_limit=15)
                 
-                # Instantly stop the clock the moment you finish your sentence
                 self.stop_countdown() 
                 self.update_status("Processing audio...", color="yellow")
                 
                 text = recognizer.recognize_google(audio).lower()
-                
-                # CLEANUP: Remove accidental microphone mistakes
+             
                 mistakes = ["astra", "extra", "straw", "service", "welding service", "abstract", "astro", "a star"]
                 for word in mistakes:
                     if text.startswith(word):
@@ -511,7 +482,7 @@ class AstraGUI(ctk.CTk):
                     self.update_status("Shutting Down", color="red")
                     self.speak("Shutting down protocols. Goodbye!")
                     self.is_running = False
-                    self.quit() # Close the window
+                    self.quit()
                     break
                 
                 self.update_status("Astra is thinking...", color="#ff00ff")
