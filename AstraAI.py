@@ -9,6 +9,8 @@ import threading
 import customtkinter as ctk
 from datetime import datetime
 from ddgs import DDGS
+import math
+import tkinter as tk
 
 
 engine = pyttsx3.init()
@@ -360,86 +362,161 @@ def ask_brain(user_input):
 
 
 
+
 class AstraGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        
         self.title("AstraAI - Core System")
-        self.geometry("600x500")
+        self.geometry("700x600")
+        self.minsize(500, 400) 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
-    
-        self.title_label = ctk.CTkLabel(self, text="Astra AI Offline Engine", font=ctk.CTkFont(size=24, weight="bold"))
-        self.title_label.pack(pady=20)
+        self.grid_rowconfigure(2, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        self.title_label = ctk.CTkLabel(self, text="ASTRA AI ENGINE", font=ctk.CTkFont(size=28, weight="bold", family="Courier"))
+        self.title_label.grid(row=0, column=0, pady=(20, 0))
 
         self.status_label = ctk.CTkLabel(self, text="Status: Booting Up...", text_color="gray", font=ctk.CTkFont(size=14))
-        self.status_label.pack(pady=5)
+        self.status_label.grid(row=1, column=0, pady=5)
 
-        self.console_box = ctk.CTkTextbox(self, width=500, height=300, font=ctk.CTkFont(size=14))
-        self.console_box.pack(pady=10)
+        self.orb_canvas = tk.Canvas(self, width=200, height=200, bg="#242424", highlightthickness=0)
+        self.orb_canvas.grid(row=2, column=0, pady=10)
+        
+  
+        self.orb_angle = 0.0
+        self.orb_speed = 0.05
+        self.orb_color = "#0077ff" 
+        self.orb_vibration = 0
+   
+        self.is_listening = False
+        self.is_running = True 
+        
+    
+        self.animate_orb() 
+
+       
+        self.console_box = ctk.CTkTextbox(self, height=150, font=ctk.CTkFont(size=14), fg_color="#1e1e1e", border_width=1, border_color="#333333")
+        self.console_box.grid(row=3, column=0, padx=20, pady=20, sticky="ew")
         self.console_box.insert("0.0", "System Initializing...\n")
         self.console_box.configure(state="disabled")
 
+     
         self.is_listening = False
-
         self.is_running = True
+
         self.astra_thread = threading.Thread(target=self.run_astra)
         self.astra_thread.daemon = True
         self.astra_thread.start()
 
+  
+    def set_orb_state(self, state):
+        """Changes the quantum rings based on Astra's state."""
+        if state == "idle":
+            self.orb_color = "#0077ff" 
+            self.orb_speed = 3        
+            self.orb_vibration = 0
+        elif state == "listening":
+            self.orb_color = "#00ffcc" 
+            self.orb_speed = 8        
+            self.orb_vibration = 10    
+        elif state == "thinking":
+            self.orb_color = "#b200ff" 
+            self.orb_speed = 15        
+            self.orb_vibration = 20    
+
+    def animate_orb(self):
+        """Draws sleek, futuristic concentric spinning rings."""
+        if getattr(self, 'is_running', False):
+            self.orb_canvas.delete("all")
+            
+            cx, cy = 100, 100 
+            base_r = 40 
+            
+            pulse = math.sin(math.radians(self.orb_angle * 2)) * self.orb_vibration
+            
+            r1 = base_r + 5 + (pulse * 0.2)
+            self.orb_canvas.create_arc(
+                cx - r1, cy - r1, cx + r1, cy + r1, 
+                start=self.orb_angle, extent=280, 
+                outline=self.orb_color, width=3, style=tk.ARC
+            )
+
+            r2 = base_r + 20 + (pulse * 0.5)
+            self.orb_canvas.create_arc(
+                cx - r2, cy - r2, cx + r2, cy + r2, 
+                start=-self.orb_angle * 1.2, extent=180, 
+                outline=self.orb_color, width=4, style=tk.ARC, dash=(4, 4)
+            )
+            self.orb_canvas.create_arc(
+                cx - r2, cy - r2, cx + r2, cy + r2, 
+                start=(-self.orb_angle * 1.2) + 200, extent=100, 
+                outline=self.orb_color, width=4, style=tk.ARC, dash=(4, 4)
+            )
+
+            r3 = base_r + 35 + pulse
+            self.orb_canvas.create_arc(
+                cx - r3, cy - r3, cx + r3, cy + r3, 
+                start=self.orb_angle * 1.5, extent=80, 
+                outline=self.orb_color, width=2, style=tk.ARC
+            )
+            self.orb_canvas.create_arc(
+                cx - r3, cy - r3, cx + r3, cy + r3, 
+                start=(self.orb_angle * 1.5) + 180, extent=80, 
+                outline=self.orb_color, width=2, style=tk.ARC
+            )
+
+          
+            self.orb_angle += self.orb_speed
+            if self.orb_angle >= 360:
+                self.orb_angle = 0
+            
+            
+            self.after(30, self.animate_orb)
+
     def update_console(self, text):
-        """Safely pushes text to the UI console"""
         self.console_box.configure(state="normal")
         self.console_box.insert("end", text + "\n")
         self.console_box.see("end") 
         self.console_box.configure(state="disabled")
 
     def update_status(self, text, color="white"):
-        """Changes the status indicator text"""
         self.status_label.configure(text=f"Status: {text}", text_color=color)
 
     def speak(self, text):
-        """Custom speak function that updates the UI before talking"""
         self.update_console(f"Astra: {text}\n")
         engine.say(text)
         engine.runAndWait()
 
     def start_countdown(self, seconds):
-        """Starts the live ticking clock on the UI"""
         self.is_listening = True
+        self.set_orb_state("listening")
         self.tick_timer(seconds)
 
     def tick_timer(self, seconds):
-        """The loop that visually updates the UI every single second"""
         if not self.is_listening:
             return 
-        
         if seconds > 0:
             self.update_status(f"Listening... [{seconds}s remaining]", color="#00ffcc")
             self.after(1000, self.tick_timer, seconds - 1)
         else:
             self.update_status("Listening Timed Out", color="orange")
+            self.set_orb_state("idle")
             
     def stop_countdown(self):
-        """Instantly kills the clock"""
         self.is_listening = False
 
     def listen(self):
-        """Custom listen function linked to the UI and live timer"""
         with sr.Microphone() as source:
-            
             self.start_countdown(15) 
-            
             try:
                 audio = recognizer.listen(source, timeout=10, phrase_time_limit=15)
-                
                 self.stop_countdown() 
                 self.update_status("Processing audio...", color="yellow")
                 
                 text = recognizer.recognize_google(audio).lower()
-             
                 mistakes = ["astra", "extra", "straw", "service", "welding service", "abstract", "astro", "a star"]
                 for word in mistakes:
                     if text.startswith(word):
@@ -447,22 +524,24 @@ class AstraGUI(ctk.CTk):
                 
                 self.update_console(f"Boss: {text}")
                 return text
-                
             except sr.WaitTimeoutError:
                 self.stop_countdown()
                 self.update_status("Listening Timed Out (No speech detected)", color="orange")
+                self.set_orb_state("idle")
                 return ""
             except sr.UnknownValueError:
                 self.stop_countdown()
+                self.set_orb_state("idle")
                 return ""
             except sr.RequestError:
                 self.stop_countdown()
+                self.set_orb_state("idle")
                 self.update_console("[Error] Microphone network error.")
                 return ""
 
     def run_astra(self):
-        """The main loop running in the background thread"""
         self.update_status("Calibrating Microphone...", color="yellow")
+        self.set_orb_state("idle")
         self.speak("Calibrating audio. Please wait.")
         
         with sr.Microphone() as source:
@@ -475,17 +554,20 @@ class AstraGUI(ctk.CTk):
         
         while self.is_running:
             self.update_status("Waiting for command...", color="gray")
+            self.set_orb_state("idle")
             command = self.listen()
             
             if command:
                 if "go to sleep" in command or "shutdown" in command or "exit" in command:
                     self.update_status("Shutting Down", color="red")
+                    self.set_orb_state("idle")
                     self.speak("Shutting down protocols. Goodbye!")
                     self.is_running = False
-                    self.quit()
+                    self.quit() 
                     break
                 
                 self.update_status("Astra is thinking...", color="#ff00ff")
+                self.set_orb_state("thinking")
                 self.speak("Right away.") 
                 
                 astra_reply = ask_brain(command)
