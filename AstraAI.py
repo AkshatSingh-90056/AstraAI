@@ -3,6 +3,10 @@ import pyttsx3
 import ollama
 import webbrowser
 import os
+import asyncio
+import edge_tts
+import pygame
+import uuid
 import urllib.parse
 import requests  
 import threading
@@ -12,6 +16,16 @@ from ddgs import DDGS
 import math
 import tkinter as tk
 import time
+import pystray
+from pystray import MenuItem as item
+from PIL import Image, ImageDraw
+
+
+astra_memory = [
+    {"role": "system", "content": "You are Astra, a highly advanced, witty, and concise AI assistant. Keep your answers brief and natural."}
+]
+
+pygame.mixer.init()
 
 
 engine = pyttsx3.init()
@@ -293,8 +307,15 @@ astra_tools = [
 ]
 
 
+
+astra_memory = []
+
 def ask_brain(user_input):
+    global astra_memory 
+    
+    from datetime import datetime 
     current_time = datetime.now().strftime("%I:%M %p")
+    
     system_prompt = (
         "You are Astra, a highly intelligent, fast, and concise AI assistant. "
         "Never use markdown formatting. "
@@ -302,34 +323,33 @@ def ask_brain(user_input):
         "Always refer to the user as Boss."
     )
     
-   
     tool_keywords = ["weather", "temperature", "open", "youtube", "github", "leetcode", "news", "launch", "play", "file", "create", "make"]
     needs_tools = any(keyword in user_input.lower() for keyword in tool_keywords)
+    
+    astra_memory.append({'role': 'user', 'content': user_input})
+    
+    if len(astra_memory) > 10:
+        astra_memory = astra_memory[-10:]
+        
+    messages_to_send = [{'role': 'system', 'content': system_prompt}] + astra_memory
     
     try:
         if needs_tools:
             print("[System] Action words detected. Granting Astra tool access...")
             response = ollama.chat(
                 model='llama3.1',
-                messages=[
-                    {'role': 'system', 'content': system_prompt},
-                    {'role': 'user', 'content': user_input}
-                ],
+                messages=messages_to_send,
                 tools=astra_tools 
             )
         else:
             print("[System] Basic chat detected. Unplugging tools for instant speed...")
             response = ollama.chat(
                 model='llama3.1',
-                messages=[
-                    {'role': 'system', 'content': system_prompt},
-                    {'role': 'user', 'content': user_input}
-                ]
+                messages=messages_to_send, 
             )
         
         message = response.get('message', {})
         
-      
         if message.get('tool_calls'):
             for tool in message['tool_calls']:
                 function_name = tool['function']['name']
@@ -354,8 +374,13 @@ def ask_brain(user_input):
                         return function_to_call(arguments.get('location', 'Lucknow'))
                     elif function_name == 'get_breaking_news':
                         return function_to_call(arguments.get('query'))
-                        
-        return message.get('content', "I am processing that, Boss.")
+                    
+        final_reply = message.get('content', "I am processing that, Boss.")
+        
+        if final_reply:
+            astra_memory.append({'role': 'assistant', 'content': final_reply})
+            
+        return final_reply
         
     except Exception as e:
         print(f"\n[SYSTEM ERROR]: {str(e)}\n")
@@ -364,43 +389,35 @@ def ask_brain(user_input):
 
 
 
-# ==========================================
-# 5. THE GRAPHICAL INTERFACE (GUI)
-# ==========================================
 class AstraGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        # Setup the Window
         self.title("AstraAI - Core System")
         self.geometry("700x650")
         self.minsize(500, 500)
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
+        
+        self.protocol("WM_DELETE_WINDOW", self.hide_window)
 
-        # GRID SYSTEM (Row 3 gets 100% of the stretch space)
         self.grid_rowconfigure(3, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
-        # ROW 0: Header
         self.title_label = ctk.CTkLabel(self, text="ASTRA AI ENGINE", font=ctk.CTkFont(size=28, weight="bold", family="Courier"))
         self.title_label.grid(row=0, column=0, pady=(20, 0))
 
-        # ROW 1: Status
         self.status_label = ctk.CTkLabel(self, text="Status: Booting Up...", text_color="gray", font=ctk.CTkFont(size=14))
         self.status_label.grid(row=1, column=0, pady=5)
 
-        # ROW 2: The Quantum Rings (Canvas)
         self.orb_canvas = tk.Canvas(self, width=200, height=200, bg="#242424", highlightthickness=0)
         self.orb_canvas.grid(row=2, column=0, pady=10)
 
-        # ROW 3: ONE Massive Dynamic Console
         self.console_box = ctk.CTkTextbox(self, font=ctk.CTkFont(size=14), fg_color="#1e1e1e", border_width=1, border_color="#333333")
         self.console_box.grid(row=3, column=0, padx=20, pady=10, sticky="nsew")
         self.console_box.insert("0.0", "System Initializing...\n")
         self.console_box.configure(state="disabled")
 
-        # ROW 4: Hybrid Control Deck
         self.controls_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.controls_frame.grid(row=4, column=0, padx=20, pady=(0, 20), sticky="ew")
         self.controls_frame.grid_columnconfigure(1, weight=1)
@@ -416,7 +433,6 @@ class AstraGUI(ctk.CTk):
         self.send_button = ctk.CTkButton(self.controls_frame, text="Send", width=60, command=self.handle_text_input)
         self.send_button.grid(row=0, column=2, padx=(5, 0))
 
-        # Animation & State Variables
         self.orb_angle = 0.0
         self.orb_speed = 0.05
         self.orb_color = "#0077ff" 
@@ -426,12 +442,10 @@ class AstraGUI(ctk.CTk):
         
         self.animate_orb() 
 
-        # Start Astra's brain
         self.astra_thread = threading.Thread(target=self.run_astra)
         self.astra_thread.daemon = True
         self.astra_thread.start()
 
-    # --- UI ANIMATION ---
     def set_orb_state(self, state):
         if state == "idle":
             self.orb_color = "#0077ff" 
@@ -452,14 +466,13 @@ class AstraGUI(ctk.CTk):
             cx, cy, base_r = 100, 100, 40 
             pulse = math.sin(math.radians(self.orb_angle * 2)) * self.orb_vibration
             
-            # Inner Ring
             r1 = base_r + 5 + (pulse * 0.2)
             self.orb_canvas.create_arc(cx - r1, cy - r1, cx + r1, cy + r1, start=self.orb_angle, extent=280, outline=self.orb_color, width=3, style=tk.ARC)
-            # Middle Ring
+
             r2 = base_r + 20 + (pulse * 0.5)
             self.orb_canvas.create_arc(cx - r2, cy - r2, cx + r2, cy + r2, start=-self.orb_angle * 1.2, extent=180, outline=self.orb_color, width=4, style=tk.ARC, dash=(4, 4))
             self.orb_canvas.create_arc(cx - r2, cy - r2, cx + r2, cy + r2, start=(-self.orb_angle * 1.2) + 200, extent=100, outline=self.orb_color, width=4, style=tk.ARC, dash=(4, 4))
-            # Outer Ring
+
             r3 = base_r + 35 + pulse
             self.orb_canvas.create_arc(cx - r3, cy - r3, cx + r3, cy + r3, start=self.orb_angle * 1.5, extent=80, outline=self.orb_color, width=2, style=tk.ARC)
             self.orb_canvas.create_arc(cx - r3, cy - r3, cx + r3, cy + r3, start=(self.orb_angle * 1.5) + 180, extent=80, outline=self.orb_color, width=2, style=tk.ARC)
@@ -467,7 +480,6 @@ class AstraGUI(ctk.CTk):
             self.orb_angle = (self.orb_angle + self.orb_speed) % 360
             self.after(30, self.animate_orb)
 
-    # --- UTILITIES ---
     def update_console(self, text):
         self.console_box.configure(state="normal")
         self.console_box.insert("end", text + "\n\n")
@@ -478,12 +490,40 @@ class AstraGUI(ctk.CTk):
         self.status_label.configure(text=f"Status: {text}", text_color=color)
 
     def speak(self, text):
+        """Generates hyper-realistic AI speech and plays it dynamically"""
         self.update_console(f"Astra: {text}")
+        
         if self.voice_switch.get() == 1:
-            engine.say(text)
-            engine.runAndWait()
+            threading.Thread(target=self._async_speak_worker, args=(text,), daemon=True).start()
 
-    # --- BRAIN EXECUTION ---
+    def _async_speak_worker(self, text):
+        """Background worker to handle the async voice generation"""
+        voice = "en-IN-NeerjaNeural"
+        
+        unique_id = str(uuid.uuid4().hex)
+        audio_file = f"temp_astra_{unique_id}.mp3"
+        
+        try:
+            communicate = edge_tts.Communicate(text, voice, rate="+15%")
+            asyncio.run(communicate.save(audio_file))
+            
+            pygame.mixer.music.load(audio_file)
+            pygame.mixer.music.play()
+            
+            while pygame.mixer.music.get_busy():
+                pygame.time.Clock().tick(10)
+                
+        except Exception as e:
+            print(f"[Audio Error]: {e}")
+            
+        finally:
+            pygame.mixer.music.unload()
+            try:
+                if os.path.exists(audio_file):
+                    os.remove(audio_file)
+            except Exception:
+                pass
+
     def execute_command(self, command):
         if "go to sleep" in command or "shutdown" in command or "exit" in command:
             self.update_status("Shutting Down", color="red")
@@ -512,7 +552,7 @@ class AstraGUI(ctk.CTk):
         self.update_console(f"Boss (Typed): {text}")
         threading.Thread(target=self.execute_command, args=(text,), daemon=True).start()
 
-    # --- MICROPHONE LOGIC ---
+
     def start_countdown(self, seconds):
         self.is_listening = True
         self.set_orb_state("listening") 
@@ -575,6 +615,36 @@ class AstraGUI(ctk.CTk):
                 self.update_status("Text Mode Active (Mic Muted)", color="gray")
                 self.set_orb_state("idle")
                 time.sleep(1)
+
+
+    def create_tray_image(self):
+        """Generates a sleek blue dot icon for the system tray via code"""
+        image = Image.new('RGB', (64, 64), color=(36, 36, 36))
+        dc = ImageDraw.Draw(image)
+        dc.ellipse((16, 16, 48, 48), fill=(0, 119, 255))
+        return image
+
+    def hide_window(self):
+        """Hides the UI and spawns the tray icon"""
+        self.withdraw() 
+        
+        image = self.create_tray_image()
+        menu = (item('Show Astra', self.show_window), item('Quit', self.quit_window))
+        
+        self.tray_icon = pystray.Icon("AstraAI", image, "Astra AI Engine", menu)
+        threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+    def show_window(self, icon, item):
+        """Brings the UI back from the dead"""
+        self.tray_icon.stop() 
+        self.after(0, self.deiconify) 
+
+    def quit_window(self, icon, item):
+        """The TRUE shutdown command"""
+        self.tray_icon.stop()
+        self.is_running = False
+        self.quit()
+
 
 if __name__ == "__main__":
     app = AstraGUI()
