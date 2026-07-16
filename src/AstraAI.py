@@ -44,14 +44,22 @@ def create_file_tool(filename):
     except Exception as e:
         return f"Failed to create file. Error: {str(e)}"
 
-def open_website_tool(url):
-    if not url.startswith("http"):
-        url = "https://" + url
-    try:
-        webbrowser.open(url)
-        return "I have opened the website for you, Boss."
-    except Exception as e:
-        return f"Failed to open website. Error: {str(e)}"
+def open_website_tool(website_name):
+    website_name = website_name.lower().replace(" ", "")
+    
+    urls = {
+        "github": "https://github.com/AkshatSingh-90056",
+        "leetcode": "https://leetcode.com/u/Akshat_singh22/",
+        "linkedin": "https://www.linkedin.com/in/akshat-singh-811641317/",
+        "youtube": "https://www.youtube.com"
+    }
+    
+    if website_name in urls:
+        webbrowser.open(urls[website_name])
+        return f"I have opened {website_name} for you, Boss."
+    else:
+        webbrowser.open(f"https://www.{website_name}.com")
+        return f"I have opened {website_name}, Boss."
 
 def search_youtube_tool(query):
     try:
@@ -84,7 +92,10 @@ def open_application_tool(app_name):
     except Exception as e:
         return f"I encountered an error trying to open {app_name}."
 
-def get_github_stats_tool(username):
+def get_github_stats_tool(username="AkshatSingh-90056"):
+    if not username or username.lower() in ["my", "me", "boss"]:
+        username = "AkshatSingh-90056"
+        
     try:
         user_url = f"https://api.github.com/users/{username}"
         user_response = requests.get(user_url)
@@ -109,8 +120,9 @@ def get_github_stats_tool(username):
         return "I encountered a network error while trying to reach the GitHub servers."
 
 def get_leetcode_stats_tool(username="Akshat_singh22"):
-    if " " in username or "code" in username.lower() or "league" in username.lower():
+    if not username or " " in username or username.lower() in ["my", "me", "boss", "league", "code", "leadcode", "leetcode"]:
         username = "Akshat_singh22"
+        
     try:
         url = "https://leetcode.com/graphql"
         query = """
@@ -229,20 +241,20 @@ astra_tools = [
             },
         },
     },
-    {
+   {
         'type': 'function',
         'function': {
             'name': 'open_website',
-            'description': 'Opens a website in the browser. Use this whenever the user wants to go to LeetCode, GitHub, or LinkedIn.',
+            'description': 'Opens a specific website. Use this whenever the user wants to go to LeetCode, GitHub, LinkedIn, etc.',
             'parameters': {
                 'type': 'object',
                 'properties': {
-                    'url': {
+                    'website_name': {
                         'type': 'string', 
-                        'description': 'CRITICAL URLS: "github" -> "https://github.com/AkshatSingh-90056". "linkedin" -> "https://www.linkedin.com/in/akshat-singh-811641317/". "leetcode" or "lead code" -> "https://leetcode.com/u/Akshat_singh22/".'
+                        'description': 'The simple name of the website to open, e.g., "leetcode", "github", "linkedin".'
                     },
                 },
-                'required': ['url'],
+                'required': ['website_name'],
             },
         },
     },
@@ -250,10 +262,15 @@ astra_tools = [
         'type': 'function',
         'function': {
             'name': 'search_youtube',
-            'description': 'Opens YouTube. ONLY use this if the user explicitly says "search youtube", "play", or "watch a video". Do NOT use this for general questions.',
+            'description': 'Searches YouTube for a video. Only use this if the user specifically asks to play a song, watch a video, or search YouTube.',
             'parameters': {
                 'type': 'object',
-                'properties': {'query': {'type': 'string'}},
+                'properties': {
+                    'query': {
+                        'type': 'string', 
+                        'description': 'The specific topic, song, or video name to search for.'
+                    }
+                },
                 'required': ['query'],
             },
         },
@@ -274,13 +291,13 @@ astra_tools = [
         'type': 'function',
         'function': {
             'name': 'get_github_stats',
-            'description': 'Fetches live statistics and repository names from a GitHub profile.',
+            'description': 'Fetches REAL live statistics from GitHub. Trigger this IMMEDIATELY if the user asks "how many repositories do I have", "what are my github stats", or anything about projects.',
             'parameters': {
                 'type': 'object',
                 'properties': {
                     'username': {
                         'type': 'string',
-                        'description': 'CRITICAL: If the user asks about "my github", use exactly "AkshatSingh-90056".'
+                        'description': 'The GitHub username. If the user asks about "my" account or doesn\'t specify, use "AkshatSingh-90056".'
                     },
                 },
                 'required': ['username'],
@@ -291,13 +308,13 @@ astra_tools = [
         'type': 'function',
         'function': {
             'name': 'get_leetcode_stats',
-            'description': 'Fetches the number of solved programming questions from a LeetCode profile.',
+            'description': 'Fetches REAL solved question counts from LeetCode. Trigger this IMMEDIATELY if the user asks "how many questions have I solved", "lead code stats", or anything about LeetCode.',
             'parameters': {
                 'type': 'object',
                 'properties': {
                     'username': {
                         'type': 'string',
-                        'description': 'CRITICAL: If the user asks about "my leetcode", "league code", "lead code", use exactly "Akshat_singh22".'
+                        'description': 'The LeetCode username. If the user asks about "my" account or doesn\'t specify, use "Akshat_singh22".'
                     },
                 },
                 'required': ['username'],
@@ -314,16 +331,26 @@ def ask_brain(user_input):
     global astra_memory 
     
     from datetime import datetime 
-    current_time = datetime.now().strftime("%I:%M %p")
+    current_time = datetime.now().strftime("%I:%M %p on %A, %B %d, %Y")
     
     system_prompt = (
         "You are Astra, a highly intelligent, fast, and concise AI assistant. "
         "Never use markdown formatting. "
         f"The current time is {current_time}. "
-        "Always refer to the user as Boss."
+        "Always refer to the user as Boss. "
+        "CRITICAL RULES: "
+        "1. If asked to open a website, strictly use the open_website tool. "
+        "2. NEVER guess, invent, or make up statistics for GitHub or LeetCode. "
+        "3. You MUST use the get_github_stats tool if asked about repositories or projects. "
+        "4. You MUST use the get_leetcode_stats tool if asked about solved questions or coding stats."
     )
     
-    tool_keywords = ["weather", "temperature", "open", "youtube", "github", "leetcode", "news", "launch", "play", "file", "create", "make"]
+    tool_keywords = [
+        "weather", "temperature", "open", "youtube", "github", "leetcode", 
+        "news", "launch", "play", "file", "create", "make", 
+        "repositories", "depositories", "repo", "project", 
+        "stats", "question", "solved", "how many"
+    ]
     needs_tools = any(keyword in user_input.lower() for keyword in tool_keywords)
     
     astra_memory.append({'role': 'user', 'content': user_input})
@@ -358,22 +385,28 @@ def ask_brain(user_input):
                 if function_name in available_functions:
                     function_to_call = available_functions[function_name]
                     
+                    tool_reply = ""
                     if function_name == 'create_file':
-                        return function_to_call(arguments.get('filename'))
+                        tool_reply = function_to_call(arguments.get('filename'))
                     elif function_name == 'open_website':
-                        return function_to_call(arguments.get('url'))
+                        url_target = arguments.get('website_name', arguments.get('url', ''))
+                        tool_reply = function_to_call(url_target)
                     elif function_name == 'search_youtube':
-                        return function_to_call(arguments.get('query'))
+                        tool_reply = function_to_call(arguments.get('query'))
                     elif function_name == 'open_application':
-                        return function_to_call(arguments.get('app_name'))
+                        tool_reply = function_to_call(arguments.get('app_name'))
                     elif function_name == 'get_github_stats':
-                        return function_to_call(arguments.get('username'))
+                        tool_reply = function_to_call(arguments.get('username'))
                     elif function_name == 'get_leetcode_stats':
-                        return function_to_call(arguments.get('username'))
+                        tool_reply = function_to_call(arguments.get('username'))
                     elif function_name == 'get_weather':
-                        return function_to_call(arguments.get('location', 'Lucknow'))
+                        tool_reply = function_to_call(arguments.get('location', 'Lucknow'))
                     elif function_name == 'get_breaking_news':
-                        return function_to_call(arguments.get('query'))
+                        tool_reply = function_to_call(arguments.get('query'))
+                    
+                    if tool_reply:
+                        astra_memory.append({'role': 'assistant', 'content': f"Action completed: {tool_reply}"})
+                        return tool_reply
                     
         final_reply = message.get('content', "I am processing that, Boss.")
         
@@ -602,7 +635,7 @@ class AstraGUI(ctk.CTk):
             recognizer.energy_threshold = 300 
             
         self.update_status("Online & Ready", color="#00ffcc")
-        self.speak("Astra architecture online. I am ready, Boss.")
+        self.speak("Astra Core Engine initialized. Local neural sub-systems online and standby.")
         
         while self.is_running:
             if self.voice_switch.get() == 1:
@@ -649,3 +682,5 @@ class AstraGUI(ctk.CTk):
 if __name__ == "__main__":
     app = AstraGUI()
     app.mainloop()
+    
+  
