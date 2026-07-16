@@ -13,7 +13,7 @@ A fully localized, stateful artificial intelligence assistant built with Python.
 
 ## Interface Preview
 
-![Astra UI Preview](./src/img/Astra UI original size.png)
+![Astra UI Preview](./src/img/Astra_UI_original_size.png)
 
 ## Tech Stack
 
